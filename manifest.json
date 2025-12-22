@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "HUSC - Hỗ Trợ Đăng Ký Tín Chỉ",
+  "version": "1.0.0",
+  "description": "Tool hỗ trợ đăng ký tín chỉ HUSC",
+  "icons": {
+    "128": "icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://student.husc.edu.vn/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "permissions": ["storage"]
+}
