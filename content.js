@@ -384,7 +384,7 @@
         p.innerHTML=`
             <div class="h-ctrl-grp"><input id="ctrl-inp-${id}" class="h-ctrl-input" placeholder="Nhập mã lớp học phần - Ví dụ: 2025-2026.2.TIN4083.001" value="${initialCode}"><button class="h-ctrl-btn" id="go-${id}"><i class="fa-solid fa-play"></i></button></div>
             <div id="log-${id}" style="font-size:11px;margin-bottom:10px;padding-left:5px;"></div>
-            <div id="area-${id}"><div class="h-empty"><i class="fa-solid fa-layer-group"></i><div>${initialCode?'Đang tải...':'Nhập mã lớp học phần để bắt đầu'}</div></div></div>
+            <div id="area-${id}"><div class="h-empty"><i class="fa-solid fa-layer-group"></i><div>${initialCode?'Đang tải...':'Nhập mã lớp học phần để bắt đầu. Lưu ý chọn học kỳ tác nghiệp trước khi thực hiện lấy form đăng ký'}</div></div></div>
         `;
         document.getElementById('tabs-content').appendChild(p);
         document.getElementById(`go-${id}`).addEventListener('click', ()=>updateTab(id));
