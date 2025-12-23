@@ -99,7 +99,7 @@
     const box = document.createElement('div');
     box.id = UI_ID;
     if (initialMinimized) box.className = 'minimized';
-    
+
     box.innerHTML = `
         <div class="h-bubble" id="h-bubble-trigger">
             <i class="fa-solid fa-graduation-cap"></i>
@@ -159,7 +159,7 @@
         else { ui.classList.remove('has-alert'); badge.style.display='none'; }
     };
 
-    // === 5. AUTH LOGIC (FIXED) ===
+    // === 5. AUTH LOGIC ===
     const detectUserField = (html) => {
         const doc = new DOMParser().parseFromString(html, 'text/html');
         return {
@@ -168,37 +168,26 @@
         };
     };
 
-    // Hàm login chủ động (trả về Promise true/false)
     const executeLogin = async (u, p) => {
         try {
-            // Step 1: Get Token
             const res1 = await fetch(CONFIG.loginPath);
             const info = detectUserField(await res1.text());
             if (!info.token) return false;
-
-            // Step 2: Post Login
             const params = new URLSearchParams();
             params.append('__RequestVerificationToken', info.token);
             params.append(info.field, u);
             params.append('Password', p);
             params.append('RememberMe', 'false');
-
             const res2 = await fetch(CONFIG.loginPath, { method:'POST', body:params, headers:{'Content-Type':'application/x-www-form-urlencoded'} });
             
-            // Check redirect
             if (!res2.url.includes('Account/Login')) {
-                // Thành công: Update MEMORY
-                MEMORY.user = u;
-                MEMORY.pass = p;
-                MEMORY.loginToken = info.token;
-                MEMORY.userFieldName = info.field;
+                MEMORY.user = u; MEMORY.pass = p; MEMORY.loginToken = info.token; MEMORY.userFieldName = info.field;
                 return true;
             }
             return false;
         } catch(e) { return false; }
     };
 
-    // Render Login Form inside a Tab
     const showLoginUI = (id, tabWorkerCallback) => {
         const area = document.getElementById(`area-${id}`);
         area.innerHTML = `
@@ -220,9 +209,8 @@
             btn.disabled = true; btn.innerText = "Đang kết nối...";
             
             if (await executeLogin(u, p)) {
-                // Login thành công -> Restart Worker
                 area.innerHTML = `<div class="h-empty"><i class="fa-solid fa-check"></i> Đăng nhập thành công!</div>`;
-                tabWorkerCallback(); // Gọi lại worker
+                tabWorkerCallback(); 
             } else {
                 btn.disabled = false; btn.innerText = "ĐĂNG NHẬP LẠI";
                 alert("Đăng nhập thất bại! Kiểm tra lại Mã SV/Mật khẩu.");
@@ -233,7 +221,7 @@
         document.getElementById(`login-p-${id}`).addEventListener('keydown', (e)=>{if(e.key==='Enter') handleLogin();});
     };
 
-    // --- WORKER ---
+    // === 6. WORKER & SMART LOGIC ===
     const extractDetails = (doc) => {
         let info = { name: '...', gv: '?', tkb: '?', current: '0', min: '0', max: '0' };
         doc.querySelectorAll('.row.form-group').forEach(r => {
@@ -252,7 +240,6 @@
     const startTabWorker = async (id) => {
         const tabBtn = document.getElementById(`tab-btn-${id}`);
         
-        // Loop chính
         while (true) {
             if(TAB_STATE[id].killed) break;
             const code = TAB_STATE[id].code;
@@ -262,23 +249,17 @@
             
             try {
                 log(id, 'Đang tìm...', 'fa-spinner fa-spin', '#f0ad4e');
-                
-                // Fetch form
                 const res = await fetch(`/Studying/CourseRegistration/${code}/`, { headers:{'X-Requested-With':'XMLHttpRequest'} });
                 
-                // CHECK LOGIN REDIRECT
                 if (res.url.includes('Account/Login')) {
                     log(id, 'Yêu cầu đăng nhập', 'fa-lock', '#d9534f');
-                    // Nếu có user/pass trong RAM, thử auto-login 1 lần
                     if (MEMORY.user && MEMORY.pass) {
                         log(id, 'Đang tự đăng nhập lại...', 'fa-rotate', '#337ab7');
                         const relogin = await executeLogin(MEMORY.user, MEMORY.pass);
-                        if (relogin) continue; // Retry fetch immediately
+                        if (relogin) continue; 
                     }
-                    
-                    // Nếu không auto được -> Hiện form Login UI
                     showLoginUI(id, () => startTabWorker(id)); 
-                    return; // Thoát worker hiện tại, chờ callback từ UI login
+                    return; 
                 }
 
                 const txt = await res.text();
@@ -315,23 +296,39 @@
                 const img = document.getElementById(`img-${id}`), inp = document.getElementById(`inp-${id}`), sub = document.getElementById(`sub-${id}`);
                 img.addEventListener('click', ()=>{img.src=`/Captcha?t=${Date.now()}`;inp.focus();});
                 
+                // === SMART SUBMIT LOGIC ===
                 const doSubmit = async () => {
                     const c = inp.value.trim(); if(!c) return inp.focus();
                     sub.disabled=true; sub.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Đang gửi...';
                     try {
                         const p = new URLSearchParams(); p.append('__RequestVerificationToken',token); p.append('courseId',code); p.append('captcha',c);
                         const r = await fetch('/Studying/CourseRegistration', {method:'POST',body:p,headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'}});
-                        // Check login redirect again
-                        if (r.url.includes('Account/Login')) {
-                             showLoginUI(id, () => startTabWorker(id)); return;
-                        }
+                        
+                        if (r.url.includes('Account/Login')) { showLoginUI(id, ()=>startTabWorker(id)); return; }
+                        
                         const d = await r.json();
                         if(d.Code===1) {
                             tabBtn.classList.remove('ready'); updateGlobalAlert();
                             area.innerHTML=`<div style="text-align:center;color:#5cb85c;margin-top:50px;"><i class="fa-solid fa-check-circle" style="font-size:50px;"></i><br><br><b>ĐĂNG KÝ THÀNH CÔNG!</b></div>`;
                             log(id, 'Hoàn tất.', 'fa-flag', '#5cb85c');
-                        } else { sub.disabled=false; sub.innerHTML='THỬ LẠI'; alert(d.Msg); img.click(); inp.value=''; }
-                    } catch { sub.disabled=false; sub.innerHTML='THỬ LẠI'; alert('Lỗi mạng'); }
+                        } else {
+                            sub.disabled=false; sub.innerHTML='XÁC NHẬN LẠI'; 
+                            alert(d.Msg); 
+                            
+                            // CHỈ RESET NẾU LỖI DO MÃ XÁC NHẬN
+                            const msg = d.Msg ? d.Msg.toLowerCase() : "";
+                            if (msg.includes("mã xác nhận") || msg.includes("captcha") || msg.includes("không đúng")) {
+                                img.click(); // Đổi ảnh khác
+                                inp.value=''; 
+                                inp.focus();
+                            } else {
+                                inp.focus();
+                            }
+                        }
+                    } catch { 
+                        sub.disabled=false; sub.innerHTML='XÁC NHẬN LẠI'; 
+                        alert('Lỗi mạng hoặc Server bận. Hãy thử lại!'); 
+                    }
                 };
                 sub.addEventListener('click', doSubmit);
                 inp.addEventListener('keydown', (e)=>{if(e.key==='Enter')doSubmit();});
@@ -345,7 +342,7 @@
         }
     };
 
-    // --- TAB MANAGER ---
+    // === 7. TAB MANAGER ===
     const switchTab = (id) => {
         document.querySelectorAll('.h-tab').forEach(t=>t.classList.remove('active'));
         document.querySelectorAll('.h-pane').forEach(p=>p.classList.remove('active'));
@@ -392,9 +389,6 @@
 
         startTabWorker(id); switchTab(id); if(!initData) saveState();
     };
-
-    document.getElementById('btn-add').addEventListener('click', ()=>createTab(null));
-
     // === START ===
     (async()=>{
         if(savedData){TAB_COUNTER=savedData.counter||0;const k=Object.keys(savedData.tabs||{});if(k.length>0)k.forEach(i=>createTab({id:i,code:savedData.tabs[i].code}));else createTab(null);}
